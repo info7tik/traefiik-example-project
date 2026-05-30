@@ -1,0 +1,62 @@
+services:
+
+  traefik:
+    image: traefik:v3.7.1
+    container_name: traefik
+    command:
+      - --api.dashboard=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      # HTTP
+      - --entrypoints.web.address=:80
+      # HTTPS
+      - --entrypoints.websecure.address=:443
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - frontend
+    restart: unless-stopped
+
+  springboot:
+    build:
+      context: api/
+      dockerfile: docker/fshop-api.dockerfile
+    container_name: springboot
+    networks:
+      - frontend
+    restart: unless-stopped
+    labels:
+      # Detect the container with traefik
+      - traefik.enable=true
+      - traefik.http.routers.springboot.entrypoints=web
+      # Match /api requests
+      #- traefik.http.routers.springboot.rule=Host(`api.example.com`)
+      - traefik.http.routers.springboot.rule=Host(`localhost`)
+      - traefik.http.routers.springboot.rule=PathPrefix(`/api`)
+      # Remove /api before forwarding to Spring Boot
+      - traefik.http.middlewares.api-strip.stripprefix.prefixes=/api
+      - traefik.http.routers.springboot.middlewares=api-strip
+      # Service
+      - traefik.http.services.springboot.loadbalancer.server.port=8888
+
+  httpd:
+    image: httpd:2.4
+    container_name: httpd
+    volumes:
+      - ./ui:/usr/local/apache2/htdocs:ro
+    labels:
+      - traefik.enable=true
+      # Everything except /api
+      - traefik.http.routers.web.rule=PathPrefix(`/`)
+      - traefik.http.routers.web.entrypoints=web
+      - traefik.http.services.web.loadbalancer.server.port=80
+    networks:
+      - frontend
+    restart: unless-stopped
+
+networks:
+  frontend:
+    driver: bridge

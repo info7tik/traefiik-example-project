@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F-Shop</title>
+</head>
+<body>
+
+    <h1>F-Shop Frontend</h1>
+
+    <p id="message">Loading...</p>
+
+    <script>
+        async function loadWelcomeMessage() {
+            try {
+                const response = await fetch('/api/welcome');
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                document.getElementById('message').textContent =
+                    data.message;
+            } catch (error) {
+                document.getElementById('message').textContent =
+                    'Failed to load welcome message';
+                console.error(error);
+            }
+        }
+
+        loadWelcomeMessage();
+    </script>
+
+</body>
+</html>
