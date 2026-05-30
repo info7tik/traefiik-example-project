@@ -22,9 +22,14 @@ services:
       - "80:80"
       - "443:443"
     volumes:
+      # Traefik can use docker to detect containers
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./certs:/certs:ro
+      # Certificates configurations
       - ./traefik-dynamic.yml:/etc/traefik/dynamic.yml:ro
+      # Access to my certificates
+      - ./certs:/certs:ro
+      # Save the certificates renew
+      - ./letsencrypt/:/letsencrypt/
     networks:
       - frontend
     restart: unless-stopped
