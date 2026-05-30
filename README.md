@@ -95,23 +95,124 @@ For local HTTPS testing, the project includes self-signed certificates in `/cert
 
 These are loaded by Traefik's dynamic configuration in `traefik-dynamic.yml`.
 
-### Production Configuration
+### Production Deployment
 
-For production deployment:
+To deploy this project to production with Let's Encrypt HTTPS certificates:
 
-1. **Update the email in docker-compose.yml**:
-   ```yaml
-   - --certificatesresolvers.letsencrypt.acme.email=your-email@example.com
-   ```
+#### 1. **Pre-Deployment Requirements**
 
-2. **Update the domain in docker-compose.yml**:
-   ```yaml
-   - traefik.http.routers.springboot.rule=Host(`your-domain.com`)
-   ```
+- A public domain name (e.g., `app.example.com`)
+- A server with ports 80 and 443 publicly accessible
+- An email address for Let's Encrypt certificate notifications
+- SSH access to the production server
+- Docker and Docker Compose installed on the server
 
-3. **Ensure port 80 and 443 are accessible** for Let's Encrypt ACME challenges
+#### 2. **Prepare the Configuration**
 
-4. **Mount `/letsencrypt/acme.json` as a volume** to persist certificate renewals
+Create a production `.env` file or update `docker-compose.yml`:
+
+```bash
+# Set production environment variables
+export DOMAIN=your-domain.com
+export LETSENCRYPT_EMAIL=your-email@example.com
+```
+
+Update the following in `docker-compose.yml`:
+
+```yaml
+# Line 18: Update the email for Let's Encrypt notifications
+- --certificatesresolvers.letsencrypt.acme.email=your-email@example.com
+
+# Line 53 & 63: Update the domain (replace localhost)
+# Before: traefik.http.routers.springboot.rule=Host(`localhost`)
+# After:  traefik.http.routers.springboot.rule=Host(`your-domain.com`)
+```
+
+**Remove the self-signed certificate mount** from the Traefik service in `docker-compose.yml`:
+
+```yaml
+# DELETE THESE LINES from docker-compose.yml (Traefik service volumes):
+# Use the dynamic configuration
+- --providers.file.directory=/etc/traefik/dynamic
+- --providers.file.watch=true
+- ./traefik-dynamic.yml:/etc/traefik/dynamic/dynamic.yml:ro
+# Certificates configurations
+- ./traefik-dynamic.yml:/etc/traefik/dynamic/dynamic.yml:ro
+# Access to my certificates
+- ./certs:/certs:ro
+
+# In production, Traefik uses Let's Encrypt instead of the local dynamic config
+```
+
+#### 3. **Remove Development Certificates**
+
+Delete the self-signed certificates directory (used only for local development):
+
+```bash
+rm -rf certs/
+```
+
+Traefik will automatically generate Let's Encrypt certificates on first run. The certificates will be stored in `letsencrypt/acme.json`.
+
+#### 4. **Set DNS Records**
+
+Point your domain's A record to your server's public IP address:
+
+```
+A  your-domain.com  → your-server-ip
+```
+
+Wait for DNS propagation (usually 5-30 minutes).
+
+#### 5. **Deploy to Production**
+
+```bash
+# Start all services
+cd /app/fshop
+docker-compose up -d
+# Verify services are running
+docker-compose ps
+# Check Traefik logs for Let's Encrypt certificate generation
+docker-compose logs -f traefik
+```
+
+#### 6. **Verify the Deployment**
+
+Once Traefik has acquired a certificate (watch logs for "challenge solved"):
+
+```bash
+# Access the frontend
+curl https://your-domain.com/
+# Test the API
+curl https://your-domain.com/api/welcome
+# Check API health
+curl https://your-domain.com/api/actuator/health
+```
+
+All requests should now use valid Let's Encrypt HTTPS certificates (no certificate warnings).
+
+#### 7. **Maintenance & Certificate Renewal**
+
+- **Certificate Renewal**: Traefik automatically renews certificates 30 days before expiration
+- **Certificate Storage**: Certificates are stored in `letsencrypt/acme.json` - **back this file up**
+- **Rate Limiting**: Let's Encrypt has rate limits; see [their documentation](https://letsencrypt.org/docs/rate-limits/)
+- **Logs**: Monitor Traefik logs regularly for certificate issues:
+  ```bash
+  docker-compose logs traefik
+  ```
+
+#### 8. **Production Checklist**
+
+- [ ] Domain name registered and DNS configured
+- [ ] Ports 80 and 443 publicly accessible
+- [ ] `docker-compose.yml` updated with production domain
+- [ ] `docker-compose.yml` updated with valid email address
+- [ ] `certs/` directory removed (self-signed certs no longer needed)
+- [ ] `letsencrypt/` directory created and writable
+- [ ] Services deployed with `docker-compose up -d`
+- [ ] Traefik logs confirm certificate acquisition
+- [ ] HTTPS requests work without certificate warnings
+- [ ] `letsencrypt/acme.json` is backed up regularly
 
 ## Project Structure
 
@@ -204,13 +305,13 @@ mvn test
 
 ## Key Features Demonstrated
 
-✅ **Service Discovery** - Traefik automatically discovers services via Docker labels  
-✅ **Path-Based Routing** - Different endpoints route to different services  
-✅ **HTTPS/TLS** - Automatic certificate management with Let's Encrypt  
-✅ **HTTP Redirection** - All HTTP traffic redirects to HTTPS  
-✅ **Multi-Service Architecture** - Frontend, API, and reverse proxy working together  
-✅ **Docker Compose** - Simple orchestration with clear service definitions  
-✅ **Middleware** - Path stripping middleware removes `/api` prefix before forwarding  
+✅ **Service Discovery** - Traefik automatically discovers services via Docker labels
+✅ **Path-Based Routing** - Different endpoints route to different services
+✅ **HTTPS/TLS** - Automatic certificate management with Let's Encrypt
+✅ **HTTP Redirection** - All HTTP traffic redirects to HTTPS
+✅ **Multi-Service Architecture** - Frontend, API, and reverse proxy working together
+✅ **Docker Compose** - Simple orchestration with clear service definitions
+✅ **Middleware** - Path stripping middleware removes `/api` prefix before forwarding
 
 ## Troubleshooting
 
