@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class WelcomeController {
 
     @GetMapping("/welcome")
-    public Map<String, String> status() {
+    public Map<String, String> welcome() {
         return Map.of("message", "Welcome Home");
     }
 }
